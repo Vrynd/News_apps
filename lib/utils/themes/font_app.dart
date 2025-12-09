@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 class FontApps {
   // Gunakan hanya satu font: Sora
-  static final TextStyle _baseStyle = GoogleFonts.roboto();
+  static final TextStyle _baseStyle = GoogleFonts.poppins();
 
   /// displayLarge
   static TextStyle displayLarge = _baseStyle.copyWith(
