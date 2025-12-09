@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:news_app/pages/home_page.dart';
+import 'package:news_app/pages/login_page.dart';
 import 'package:news_app/utils/themes/theme_app.dart';
 
 void main() {
@@ -17,7 +17,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeApps.lightTheme,
       darkTheme: ThemeApps.darkTheme,
       themeMode: ThemeMode.system,
-      home: const HomePageView(),
+      home: const LoginPageView(),
     );
   }
 }

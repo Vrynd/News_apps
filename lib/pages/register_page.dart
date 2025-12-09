@@ -6,22 +6,39 @@ import 'package:news_app/utils/components/passwordformfield.dart';
 import 'package:news_app/utils/components/emailformfield.dart';
 import 'package:news_app/utils/helper/form_validator.dart';
 
-class HomePageView extends StatefulWidget {
-  const HomePageView({super.key});
+class RegisterPageView extends StatefulWidget {
+  const RegisterPageView({super.key});
 
   @override
-  State<HomePageView> createState() => _HomePageViewState();
+  State<RegisterPageView> createState() => _RegisterPageViewState();
 }
 
-class _HomePageViewState extends State<HomePageView> {
+class _RegisterPageViewState extends State<RegisterPageView> {
   // Warna dan Teks
   ColorScheme get color => Theme.of(context).colorScheme;
   TextTheme get textStyle => Theme.of(context).textTheme;
 
+  final nameFocusNode = FocusNode();
+  final nameController = TextEditingController();
   final emailFocusNode = FocusNode();
   final emailController = TextEditingController();
   final passwordFocusNode = FocusNode();
   final passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    nameFocusNode.dispose();
+    nameController.dispose();
+    emailFocusNode.dispose();
+    emailController.dispose();
+    passwordFocusNode.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  void _goToLogin() {
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,13 +64,13 @@ class _HomePageViewState extends State<HomePageView> {
                   spacing: 4,
                   children: [
                     Text(
-                      'Selamat Datang!',
+                      'Buat Akun Baru',
                       style: textStyle.titleLarge?.copyWith(
                         color: color.primary,
                       ),
                     ),
                     Text(
-                      'Silahkan login untuk melanjutkan',
+                      'Silahkan daftar untuk melanjutkan',
                       style: textStyle.bodyLarge?.copyWith(
                         color: color.onSurface,
                       ),
@@ -67,6 +84,27 @@ class _HomePageViewState extends State<HomePageView> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: 16,
                   children: [
+                    EmailFormField(
+                      autofocus: true,
+                      focusNode: nameFocusNode,
+                      controller: nameController,
+                      textStyle: textStyle,
+                      color: color,
+                      labelText: 'Nama Lengkap',
+                      hintText: 'Masukkan nama anda disini',
+                      prefixIcon: Icon(
+                        LucideIcons.user,
+                        size: 20,
+                        color: color.primary,
+                      ),
+                      keyboardType: TextInputType.name,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.name],
+                      onFieldSubmitted: (_) {
+                        FocusScope.of(context).requestFocus(emailFocusNode);
+                      },
+                    ),
+
                     EmailFormField(
                       autofocus: true,
                       focusNode: emailFocusNode,
@@ -114,25 +152,7 @@ class _HomePageViewState extends State<HomePageView> {
 
                 ButtonTypeAction(
                   type: ButtonType.elevated,
-                  label: 'Login',
-                  onPressed: () {},
-                  textStyle: textStyle,
-                  color: color,
-                ),
-                const SizedBox(height: 16),
-
-                Text(
-                  'atau',
-                  style: textStyle.labelLarge?.copyWith(
-                    color: color.outlineVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-
-                ButtonTypeAction(
-                  type: ButtonType.outline,
-                  label: 'Lanjut Sebagai Anonimus',
+                  label: 'Daftar Sekarang',
                   onPressed: () {},
                   textStyle: textStyle,
                   color: color,
@@ -146,15 +166,15 @@ class _HomePageViewState extends State<HomePageView> {
         color: color.surface,
         child: Center(
           child: InkWell(
-            onTap: () {},
+            onTap: _goToLogin,
             borderRadius: BorderRadius.circular(8),
             child: Text.rich(
               TextSpan(
-                text: 'Belum punya akun? ',
+                text: 'Sudah punya akun? ',
                 style: textStyle.bodyMedium,
                 children: [
                   TextSpan(
-                    text: 'Daftar',
+                    text: 'Masuk',
                     style: textStyle.bodyMedium?.copyWith(
                       color: color.primary,
                       fontWeight: FontWeight.w600,
