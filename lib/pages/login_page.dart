@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:news_app/data/service/auth_service.dart';
+import 'package:news_app/data/service/token_service.dart';
+import 'package:news_app/pages/home_page.dart';
 import 'package:news_app/pages/register_page.dart';
 import 'package:news_app/utils/components/adaptive_scaffold.dart';
 import 'package:news_app/utils/components/buttontypeaction.dart';
 import 'package:news_app/utils/components/passwordformfield.dart';
 import 'package:news_app/utils/components/emailformfield.dart';
 import 'package:news_app/utils/helper/form_validator.dart';
+import 'package:news_app/utils/helper/toast.dart';
 
 class LoginPageView extends StatefulWidget {
   const LoginPageView({super.key});
@@ -18,6 +22,18 @@ class _LoginPageViewState extends State<LoginPageView> {
   // Warna dan Teks
   ColorScheme get color => Theme.of(context).colorScheme;
   TextTheme get textStyle => Theme.of(context).textTheme;
+
+  late final TokenService tokenService;
+  late final AuthService authService;
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    tokenService = TokenService();
+    authService = AuthService(tokenService);
+  }
 
   final emailFocusNode = FocusNode();
   final emailController = TextEditingController();
@@ -40,6 +56,35 @@ class _LoginPageViewState extends State<LoginPageView> {
     );
   }
 
+  Future<void> _tapToLogin() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    try {
+      await authService.login(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+      );
+
+      if (!mounted) return;
+      ToastHelper.success(context, 'Login berhasil, selamat datang kembali!');
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePageView()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ToastHelper.error(context, e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdaptiveScaffold(
@@ -54,107 +99,112 @@ class _LoginPageViewState extends State<LoginPageView> {
               color: color.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  spacing: 4,
-                  children: [
-                    Text(
-                      'Selamat Datang!',
-                      style: textStyle.titleLarge?.copyWith(
-                        color: color.primary,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    spacing: 4,
+                    children: [
+                      Text(
+                        'Selamat Datang!',
+                        style: textStyle.titleLarge?.copyWith(
+                          color: color.primary,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Silahkan login untuk melanjutkan',
-                      style: textStyle.bodyLarge?.copyWith(
-                        color: color.onSurface,
+                      Text(
+                        'Silahkan login untuk melanjutkan',
+                        style: textStyle.bodyLarge?.copyWith(
+                          color: color.onSurface,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    EmailFormField(
-                      autofocus: true,
-                      focusNode: emailFocusNode,
-                      controller: emailController,
-                      textStyle: textStyle,
-                      color: color,
-                      labelText: 'Email',
-                      hintText: 'Masukkan email anda disini',
-                      prefixIcon: Icon(
-                        LucideIcons.mail,
-                        size: 20,
-                        color: color.primary,
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
-                      validator: FormValidators.email,
-                      onFieldSubmitted: (_) {
-                        FocusScope.of(context).requestFocus(passwordFocusNode);
-                      },
-                    ),
-
-                    PasswordFormField(
-                      focusNode: passwordFocusNode,
-                      controller: passwordController,
-                      textStyle: textStyle,
-                      color: color,
-                      labelText: 'Password',
-                      hintText: 'Masukkan password anda',
-                      prefixIcon: Icon(
-                        LucideIcons.lock,
-                        size: 20,
-                        color: color.primary,
-                      ),
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.password],
-                      validator: FormValidators.password,
-                      onFieldSubmitted: (_) {
-                        FocusScope.of(context).unfocus();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                ButtonTypeAction(
-                  type: ButtonType.elevated,
-                  label: 'Login',
-                  onPressed: () {},
-                  textStyle: textStyle,
-                  color: color,
-                ),
-                const SizedBox(height: 16),
-
-                Text(
-                  'atau',
-                  style: textStyle.labelLarge?.copyWith(
-                    color: color.outlineVariant,
+                    ],
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                ButtonTypeAction(
-                  type: ButtonType.outline,
-                  label: 'Lanjut Sebagai Anonimus',
-                  onPressed: () {},
-                  textStyle: textStyle,
-                  color: color,
-                ),
-              ],
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 16,
+                    children: [
+                      EmailFormField(
+                        autofocus: false,
+                        focusNode: emailFocusNode,
+                        controller: emailController,
+                        textStyle: textStyle,
+                        color: color,
+                        labelText: 'Email',
+                        hintText: 'Masukkan email anda disini',
+                        prefixIcon: Icon(
+                          LucideIcons.mail,
+                          size: 20,
+                          color: color.primary,
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        validator: FormValidators.email,
+                        onFieldSubmitted: (_) {
+                          FocusScope.of(
+                            context,
+                          ).requestFocus(passwordFocusNode);
+                        },
+                      ),
+
+                      PasswordFormField(
+                        focusNode: passwordFocusNode,
+                        controller: passwordController,
+                        textStyle: textStyle,
+                        color: color,
+                        labelText: 'Password',
+                        hintText: 'Masukkan password anda',
+                        prefixIcon: Icon(
+                          LucideIcons.lock,
+                          size: 20,
+                          color: color.primary,
+                        ),
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.password],
+                        validator: FormValidators.password,
+                        onFieldSubmitted: (_) {
+                          FocusScope.of(context).unfocus();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  ButtonTypeAction(
+                    type: ButtonType.elevated,
+                    label: _isLoading ? 'Loading...' : 'Login',
+                    onPressed: _isLoading ? null : _tapToLogin,
+                    textStyle: textStyle,
+                    color: color,
+                  ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'atau',
+                    style: textStyle.labelLarge?.copyWith(
+                      color: color.outlineVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+
+                  ButtonTypeAction(
+                    type: ButtonType.outline,
+                    label: 'Lanjut Sebagai Anonimus',
+                    onPressed: () {},
+                    textStyle: textStyle,
+                    color: color,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

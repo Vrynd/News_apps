@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:news_app/data/service/auth_service.dart';
+import 'package:news_app/data/service/token_service.dart';
 import 'package:news_app/utils/components/adaptive_scaffold.dart';
 import 'package:news_app/utils/components/buttontypeaction.dart';
 import 'package:news_app/utils/components/passwordformfield.dart';
 import 'package:news_app/utils/components/emailformfield.dart';
 import 'package:news_app/utils/helper/form_validator.dart';
+import 'package:news_app/utils/helper/toast.dart';
 
 class RegisterPageView extends StatefulWidget {
   const RegisterPageView({super.key});
@@ -14,9 +17,20 @@ class RegisterPageView extends StatefulWidget {
 }
 
 class _RegisterPageViewState extends State<RegisterPageView> {
-  // Warna dan Teks
   ColorScheme get color => Theme.of(context).colorScheme;
   TextTheme get textStyle => Theme.of(context).textTheme;
+
+  late final TokenService tokenService;
+  late final AuthService authService;
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    tokenService = TokenService();
+    authService = AuthService(tokenService);
+  }
 
   final nameFocusNode = FocusNode();
   final nameController = TextEditingController();
@@ -40,6 +54,35 @@ class _RegisterPageViewState extends State<RegisterPageView> {
     Navigator.pop(context);
   }
 
+  Future<void> _tapToRegister() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    try {
+      await authService.register(
+        name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        password: passwordController.text,
+      );
+
+      if (!mounted) return;
+      ToastHelper.success(
+        context,
+        'Registrasi berhasil, login untuk melanjutkan',
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ToastHelper.error(context, e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdaptiveScaffold(
@@ -54,110 +97,115 @@ class _RegisterPageViewState extends State<RegisterPageView> {
               color: color.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  spacing: 4,
-                  children: [
-                    Text(
-                      'Buat Akun Baru',
-                      style: textStyle.titleLarge?.copyWith(
-                        color: color.primary,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    spacing: 4,
+                    children: [
+                      Text(
+                        'Buat Akun Baru',
+                        style: textStyle.titleLarge?.copyWith(
+                          color: color.primary,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Silahkan daftar untuk melanjutkan',
-                      style: textStyle.bodyLarge?.copyWith(
-                        color: color.onSurface,
+                      Text(
+                        'Silahkan daftar untuk melanjutkan',
+                        style: textStyle.bodyLarge?.copyWith(
+                          color: color.onSurface,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    EmailFormField(
-                      autofocus: true,
-                      focusNode: nameFocusNode,
-                      controller: nameController,
-                      textStyle: textStyle,
-                      color: color,
-                      labelText: 'Nama Lengkap',
-                      hintText: 'Masukkan nama anda disini',
-                      prefixIcon: Icon(
-                        LucideIcons.user,
-                        size: 20,
-                        color: color.primary,
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 16,
+                    children: [
+                      EmailFormField(
+                        autofocus: false,
+                        focusNode: nameFocusNode,
+                        controller: nameController,
+                        textStyle: textStyle,
+                        color: color,
+                        labelText: 'Nama Lengkap',
+                        hintText: 'Masukkan nama anda disini',
+                        prefixIcon: Icon(
+                          LucideIcons.user,
+                          size: 20,
+                          color: color.primary,
+                        ),
+                        keyboardType: TextInputType.name,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.name],
+                        onFieldSubmitted: (_) {
+                          FocusScope.of(context).requestFocus(emailFocusNode);
+                        },
                       ),
-                      keyboardType: TextInputType.name,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.name],
-                      onFieldSubmitted: (_) {
-                        FocusScope.of(context).requestFocus(emailFocusNode);
-                      },
-                    ),
 
-                    EmailFormField(
-                      autofocus: true,
-                      focusNode: emailFocusNode,
-                      controller: emailController,
-                      textStyle: textStyle,
-                      color: color,
-                      labelText: 'Email',
-                      hintText: 'Masukkan email anda disini',
-                      prefixIcon: Icon(
-                        LucideIcons.mail,
-                        size: 20,
-                        color: color.primary,
+                      EmailFormField(
+                        autofocus: false,
+                        focusNode: emailFocusNode,
+                        controller: emailController,
+                        textStyle: textStyle,
+                        color: color,
+                        labelText: 'Email',
+                        hintText: 'Masukkan email anda disini',
+                        prefixIcon: Icon(
+                          LucideIcons.mail,
+                          size: 20,
+                          color: color.primary,
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        validator: FormValidators.email,
+                        onFieldSubmitted: (_) {
+                          FocusScope.of(
+                            context,
+                          ).requestFocus(passwordFocusNode);
+                        },
                       ),
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
-                      validator: FormValidators.email,
-                      onFieldSubmitted: (_) {
-                        FocusScope.of(context).requestFocus(passwordFocusNode);
-                      },
-                    ),
 
-                    PasswordFormField(
-                      focusNode: passwordFocusNode,
-                      controller: passwordController,
-                      textStyle: textStyle,
-                      color: color,
-                      labelText: 'Password',
-                      hintText: 'Masukkan password anda',
-                      prefixIcon: Icon(
-                        LucideIcons.lock,
-                        size: 20,
-                        color: color.primary,
+                      PasswordFormField(
+                        focusNode: passwordFocusNode,
+                        controller: passwordController,
+                        textStyle: textStyle,
+                        color: color,
+                        labelText: 'Password',
+                        hintText: 'Masukkan password anda',
+                        prefixIcon: Icon(
+                          LucideIcons.lock,
+                          size: 20,
+                          color: color.primary,
+                        ),
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.password],
+                        validator: FormValidators.password,
+                        onFieldSubmitted: (_) {
+                          FocusScope.of(context).unfocus();
+                        },
                       ),
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.password],
-                      validator: FormValidators.password,
-                      onFieldSubmitted: (_) {
-                        FocusScope.of(context).unfocus();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
-                ButtonTypeAction(
-                  type: ButtonType.elevated,
-                  label: 'Daftar Sekarang',
-                  onPressed: () {},
-                  textStyle: textStyle,
-                  color: color,
-                ),
-              ],
+                  ButtonTypeAction(
+                    type: ButtonType.elevated,
+                    label: _isLoading ? 'Loading...' : 'Daftar Sekarang',
+                    onPressed: _isLoading ? null : _tapToRegister,
+                    textStyle: textStyle,
+                    color: color,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
