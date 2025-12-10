@@ -1,16 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:news_app/data/api/auth_response.dart';
 import 'package:news_app/data/models/user.dart';
+import 'package:news_app/data/responses/auth_response.dart';
 
-import 'package:news_app/data/service/token_service.dart';
+import 'package:news_app/core/storage/token_storage.dart';
 
 class AuthService {
   static const String baseUrl = 'http://192.168.100.63:8000';
 
-  final TokenService _tokenService;
-  AuthService(this._tokenService);
+  final TokenStorage _tokenStorage;
+
+  AuthService(this._tokenStorage);
 
   Future<AuthResponse> register({
     required String name,
@@ -23,19 +24,23 @@ class AuthService {
       final response = await http
           .post(
             url,
-            headers: {'Accept': 'application/json'},
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
             body: {'name': name, 'email': email, 'password': password},
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
         final auth = AuthResponse.fromJson(data);
 
-        await _tokenService.saveToken(auth.token);
+        await _tokenStorage.saveToken(auth.token);
         return auth;
       } else {
-        throw Exception(response.body);
+        final error = json.decode(response.body);
+        throw Exception(error['message'] ?? 'Registrasi gagal');
       }
     } on TimeoutException {
       throw Exception('Koneksi timeout. Silakan coba lagi.');
@@ -54,19 +59,23 @@ class AuthService {
       final response = await http
           .post(
             url,
-            headers: {'Accept': 'application/json'},
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
             body: {'email': email, 'password': password},
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final auth = AuthResponse.fromJson(data);
 
-        await _tokenService.saveToken(auth.token);
+        await _tokenStorage.saveToken(auth.token);
         return auth;
       } else {
-        throw Exception(response.body);
+        final error = json.decode(response.body);
+        throw Exception(error['message'] ?? 'Login gagal');
       }
     } on TimeoutException {
       throw Exception('Koneksi timeout. Silakan coba lagi.');
@@ -76,7 +85,7 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    final token = await _tokenService.getToken();
+    final token = await _tokenStorage.getToken();
     if (token == null) {
       return;
     }
@@ -89,15 +98,17 @@ class AuthService {
             url,
             headers: {
               'Accept': 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
               'Authorization': 'Bearer $token',
             },
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
-        await _tokenService.clearToken();
+        await _tokenStorage.clearToken();
       } else {
-        throw Exception(response.body);
+        final error = json.decode(response.body);
+        throw Exception(error['message'] ?? 'Logout gagal');
       }
     } on TimeoutException {
       throw Exception('Koneksi timeout saat logout. Silakan coba lagi.');
@@ -107,7 +118,7 @@ class AuthService {
   }
 
   Future<UserModel> getUser() async {
-    final token = await _tokenService.getToken();
+    final token = await _tokenStorage.getToken();
     if (token == null) {
       throw Exception('Belum login.');
     }
@@ -123,16 +134,17 @@ class AuthService {
               'Authorization': 'Bearer $token',
             },
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return UserModel.fromJson(data);
       } else if (response.statusCode == 401) {
-        await _tokenService.clearToken();
+        await _tokenStorage.clearToken();
         throw Exception('Sesi telah berakhir. Silakan login kembali.');
       } else {
-        throw Exception(response.body);
+        final error = json.decode(response.body);
+        throw Exception(error['message'] ?? 'Load user gagal');
       }
     } on TimeoutException {
       throw Exception('Koneksi timeout saat mengambil data user.');
@@ -142,6 +154,6 @@ class AuthService {
   }
 
   Future<bool> isLoggedIn() async {
-    return await _tokenService.hasToken();
+    return await _tokenStorage.hasToken();
   }
 }

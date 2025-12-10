@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:news_app/data/models/user.dart';
 import 'package:news_app/data/service/auth_service.dart';
-import 'package:news_app/data/service/token_service.dart';
+import 'package:news_app/core/storage/token_storage.dart';
 import 'package:news_app/pages/login_page.dart';
 
 class HomePageView extends StatelessWidget {
@@ -14,8 +14,8 @@ class HomePageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokenService = TokenService();
-    final authService = AuthService(tokenService);
+    final tokenStorage = TokenStorage();
+    final authService = AuthService(tokenStorage);
 
     return Scaffold(
       appBar: AppBar(
@@ -60,7 +60,7 @@ class HomePageView extends StatelessWidget {
 
                 ElevatedButton(
                   onPressed: () async {
-                    await tokenService.clearToken();
+                    await tokenStorage.clearToken();
                     if (context.mounted) {
                       Navigator.pushReplacement(
                         context,

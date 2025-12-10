@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:news_app/data/service/auth_service.dart';
-import 'package:news_app/data/service/token_service.dart';
+import 'package:news_app/core/storage/token_storage.dart';
 import 'package:news_app/pages/home_page.dart';
 import 'package:news_app/pages/register_page.dart';
 import 'package:news_app/utils/components/adaptive_scaffold.dart';
@@ -23,16 +23,17 @@ class _LoginPageViewState extends State<LoginPageView> {
   ColorScheme get color => Theme.of(context).colorScheme;
   TextTheme get textStyle => Theme.of(context).textTheme;
 
-  late final TokenService tokenService;
-  late final AuthService authService;
+  late final TokenStorage _tokenStorage;
+  late final AuthService _authService;
+
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    tokenService = TokenService();
-    authService = AuthService(tokenService);
+    _tokenStorage = TokenStorage();
+    _authService = AuthService(_tokenStorage);
   }
 
   final emailFocusNode = FocusNode();
@@ -63,7 +64,7 @@ class _LoginPageViewState extends State<LoginPageView> {
     setState(() => _isLoading = true);
 
     try {
-      await authService.login(
+      await _authService.login(
         email: emailController.text.trim(),
         password: passwordController.text,
       );
@@ -77,7 +78,8 @@ class _LoginPageViewState extends State<LoginPageView> {
       );
     } catch (e) {
       if (!mounted) return;
-      ToastHelper.error(context, e.toString());
+      final message = e.toString().replaceFirst('Exception: ', '');
+      ToastHelper.error(context, message);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

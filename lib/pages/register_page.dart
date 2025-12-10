@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:news_app/data/service/auth_service.dart';
-import 'package:news_app/data/service/token_service.dart';
+import 'package:news_app/core/storage/token_storage.dart';
 import 'package:news_app/utils/components/adaptive_scaffold.dart';
 import 'package:news_app/utils/components/buttontypeaction.dart';
 import 'package:news_app/utils/components/passwordformfield.dart';
@@ -20,16 +20,17 @@ class _RegisterPageViewState extends State<RegisterPageView> {
   ColorScheme get color => Theme.of(context).colorScheme;
   TextTheme get textStyle => Theme.of(context).textTheme;
 
-  late final TokenService tokenService;
-  late final AuthService authService;
+  late final TokenStorage _tokenStorage;
+  late final AuthService _authService;
+
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    tokenService = TokenService();
-    authService = AuthService(tokenService);
+    _tokenStorage = TokenStorage();
+    _authService = AuthService(_tokenStorage);
   }
 
   final nameFocusNode = FocusNode();
@@ -56,26 +57,25 @@ class _RegisterPageViewState extends State<RegisterPageView> {
 
   Future<void> _tapToRegister() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
 
     try {
-      await authService.register(
+      await _authService.register(
         name: nameController.text.trim(),
         email: emailController.text.trim(),
         password: passwordController.text,
       );
 
       if (!mounted) return;
-      ToastHelper.success(
-        context,
-        'Registrasi berhasil, login untuk melanjutkan',
-      );
+      ToastHelper.success(context, 'Registrasi berhasil, silakan login');
 
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ToastHelper.error(context, e.toString());
+      final message = e.toString().replaceFirst('Exception: ', '');
+      ToastHelper.error(context, message);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
