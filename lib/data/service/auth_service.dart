@@ -30,7 +30,7 @@ class AuthService {
             },
             body: {'name': name, 'email': email, 'password': password},
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -65,7 +65,7 @@ class AuthService {
             },
             body: {'email': email, 'password': password},
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -102,7 +102,7 @@ class AuthService {
               'Authorization': 'Bearer $token',
             },
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         await _tokenStorage.clearToken();
@@ -134,7 +134,7 @@ class AuthService {
               'Authorization': 'Bearer $token',
             },
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -155,5 +155,44 @@ class AuthService {
 
   Future<bool> isLoggedIn() async {
     return await _tokenStorage.hasToken();
+  }
+
+  /// Ambil daftar semua user yang terdaftar
+  Future<List<UserModel>> getAllUsers() async {
+    final token = await _tokenStorage.getToken();
+    if (token == null) {
+      throw Exception('Belum login.');
+    }
+
+    final url = Uri.parse('$baseUrl/api/users');
+
+    try {
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Handle response format: could be { "data": [...] } or { "users": [...] } or just [...]
+        final List usersList = data['data'] ?? data['users'] ?? data;
+        return usersList.map((json) => UserModel.fromJson(json)).toList();
+      } else if (response.statusCode == 401) {
+        await _tokenStorage.clearToken();
+        throw Exception('Sesi telah berakhir. Silakan login kembali.');
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['message'] ?? 'Gagal mengambil daftar user');
+      }
+    } on TimeoutException {
+      throw Exception('Koneksi timeout saat mengambil daftar user.');
+    } catch (e) {
+      throw Exception('Terjadi kesalahan saat mengambil daftar user: $e');
+    }
   }
 }

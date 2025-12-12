@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:news_app/data/service/auth_service.dart';
 import 'package:news_app/core/storage/token_storage.dart';
-import 'package:news_app/pages/home_page.dart';
+import 'package:news_app/pages/main_screen.dart';
 import 'package:news_app/pages/register_page.dart';
 import 'package:news_app/utils/components/adaptive_scaffold.dart';
 import 'package:news_app/utils/components/buttontypeaction.dart';
@@ -74,7 +74,7 @@ class _LoginPageViewState extends State<LoginPageView> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomePageView()),
+        MaterialPageRoute(builder: (_) => const MainScreen()),
       );
     } catch (e) {
       if (!mounted) return;
@@ -201,7 +201,12 @@ class _LoginPageViewState extends State<LoginPageView> {
                   ButtonTypeAction(
                     type: ButtonType.outline,
                     label: 'Lanjut Sebagai Anonimus',
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MainScreen()),
+                      );
+                    },
                     textStyle: textStyle,
                     color: color,
                   ),

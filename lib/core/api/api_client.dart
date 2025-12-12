@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:news_app/core/api/api_exception.dart';
 import 'package:news_app/core/storage/token_storage.dart';
 
 class ApiClient {
   // base url api portal berita
+  // Base URL API portal berita - pastikan IP sama dengan auth_service.dart
   static const String baseUrl = 'http://192.168.100.63:8000/api';
 
   final TokenStorage _tokenStorage;
@@ -15,7 +17,7 @@ class ApiClient {
   Future<Map<String, String>> _header({bool auth = false}) async {
     final headers = {
       'Accept': 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',  // Changed from x-www-form-urlencoded
     };
 
     if (auth) {
@@ -63,14 +65,20 @@ class ApiClient {
     bool auth = false,
   }) async {
     try {
+      debugPrint('POST $baseUrl$endpoint');
+      debugPrint('Body: $body');
+      
       final response = await http
           .post(
             Uri.parse('$baseUrl$endpoint'),
             headers: await _header(auth: auth),
-            body: body,
+            body: body != null ? json.encode(body) : null,
           )
           .timeout(const Duration(seconds: 10));
 
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+      
       return _response(response);
     } on TimeoutException {
       throw ApiException('Koneksi timeout, silakan coba lagi.');
@@ -87,7 +95,7 @@ class ApiClient {
           .put(
             Uri.parse('$baseUrl$endpoint'),
             headers: await _header(auth: auth),
-            body: body,
+            body: body != null ? json.encode(body) : null,
           )
           .timeout(const Duration(seconds: 10));
 
