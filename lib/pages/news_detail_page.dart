@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:news_app/data/models/news_model.dart';
 import 'package:news_app/data/models/comment_model.dart';
+import 'package:news_app/data/models/user.dart';
 import 'package:news_app/data/service/news_service.dart';
+import 'package:news_app/data/service/auth_service.dart';
 import 'package:news_app/data/service/bookmark_service.dart';
+import 'package:news_app/core/storage/token_storage.dart';
 import 'package:share_plus/share_plus.dart';
 
 class NewsDetailPage extends StatefulWidget {
@@ -16,7 +19,9 @@ class NewsDetailPage extends StatefulWidget {
 }
 
 class _NewsDetailPageState extends State<NewsDetailPage> {
-  final NewsService _newsService = NewsService.dummy();
+  final TokenStorage _tokenStorage = TokenStorage();
+  late final NewsService _newsService;
+  late final AuthService _authService;
   final BookmarkService _bookmarkService = BookmarkService();
   final TextEditingController _commentController = TextEditingController();
 
@@ -24,12 +29,16 @@ class _NewsDetailPageState extends State<NewsDetailPage> {
   bool _isLoadingComments = true;
   bool _isBookmarked = false;
   late NewsModel _news;
+  UserModel? _currentUser;
 
   @override
   void initState() {
     super.initState();
+    _newsService = NewsService.withApi(_tokenStorage);
+    _authService = AuthService(_tokenStorage);
     _news = widget.news;
     _isBookmarked = _bookmarkService.isBookmarked(_news.id);
+    _loadCurrentUser();
     _loadComments();
   }
 
@@ -37,6 +46,17 @@ class _NewsDetailPageState extends State<NewsDetailPage> {
   void dispose() {
     _commentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _authService.getUser();
+      if (mounted) {
+        setState(() => _currentUser = user);
+      }
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+    }
   }
 
   Future<void> _loadComments() async {
@@ -47,6 +67,7 @@ class _NewsDetailPageState extends State<NewsDetailPage> {
         _isLoadingComments = false;
       });
     } catch (e) {
+      debugPrint('Error loading comments: $e');
       setState(() => _isLoadingComments = false);
     }
   }
@@ -55,12 +76,19 @@ class _NewsDetailPageState extends State<NewsDetailPage> {
     final content = _commentController.text.trim();
     if (content.isEmpty) return;
 
+    if (_currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan login terlebih dahulu untuk berkomentar')),
+      );
+      return;
+    }
+
     try {
       final comment = await _newsService.addComment(
         newsId: _news.id,
         content: content,
-        userId: 1,
-        userName: 'User',
+        userId: _currentUser!.id,
+        userName: _currentUser!.name,
       );
       
       setState(() {
@@ -69,71 +97,16 @@ class _NewsDetailPageState extends State<NewsDetailPage> {
       });
       _commentController.clear();
       FocusScope.of(context).unfocus();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _editComment(CommentModel comment) async {
-    final controller = TextEditingController(text: comment.content);
-    
-    final newContent = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Komentar'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Tulis komentar...',
-            border: OutlineInputBorder(),
-          ),
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Komentar berhasil ditambahkan'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-    
-    controller.dispose();
-    
-    if (newContent == null || newContent.isEmpty || newContent == comment.content) return;
-    
-    try {
-      final updatedComment = await _newsService.editComment(
-        newsId: _news.id,
-        commentId: comment.id,
-        newContent: newContent,
       );
-      
-      setState(() {
-        final index = _comments.indexWhere((c) => c.id == comment.id);
-        if (index != -1) {
-          _comments[index] = updatedComment;
-        }
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Komentar berhasil diubah'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
     } catch (e) {
+      debugPrint('Error adding comment: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -462,12 +435,11 @@ class _NewsDetailPageState extends State<NewsDetailPage> {
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final comment = _comments[index];
-                          // User ID 1 adalah current user (dummy)
-                          final isOwner = comment.userId == 1;
+                          // Check if current user owns this comment
+                          final isOwner = _currentUser != null && comment.userId == _currentUser!.id;
                           return _CommentCard(
                             comment: comment,
                             isOwner: isOwner,
-                            onEdit: isOwner ? () => _editComment(comment) : null,
                             onDelete: isOwner ? () => _deleteComment(comment) : null,
                           );
                         },
@@ -574,13 +546,11 @@ class _StatItem extends StatelessWidget {
 class _CommentCard extends StatelessWidget {
   final CommentModel comment;
   final bool isOwner;
-  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   const _CommentCard({
     required this.comment,
     required this.isOwner,
-    this.onEdit,
     this.onDelete,
   });
 
@@ -659,45 +629,16 @@ class _CommentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // Menu button - hanya tampil jika owner
-              if (isOwner)
-                PopupMenuButton<String>(
+              // Delete button - hanya tampil jika owner
+              if (isOwner && onDelete != null)
+                IconButton(
+                  onPressed: onDelete,
                   icon: Icon(
-                    LucideIcons.moreVertical,
+                    LucideIcons.trash2,
                     size: 18,
-                    color: colorScheme.onSurface.withOpacity(0.5),
+                    color: Colors.red.withOpacity(0.7),
                   ),
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  onSelected: (value) {
-                    if (value == 'edit' && onEdit != null) {
-                      onEdit!();
-                    } else if (value == 'delete' && onDelete != null) {
-                      onDelete!();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.edit, size: 18, color: colorScheme.primary),
-                          const SizedBox(width: 10),
-                          const Text('Edit'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.trash2, size: 18, color: Colors.red),
-                          const SizedBox(width: 10),
-                          const Text('Hapus', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
+                  tooltip: 'Hapus komentar',
                 ),
             ],
           ),

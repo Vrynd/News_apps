@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:news_app/core/storage/token_storage.dart';
 import 'package:news_app/data/models/user.dart';
+import 'package:news_app/data/models/news_model.dart';
 import 'package:news_app/data/service/auth_service.dart';
 import 'package:news_app/data/service/news_service.dart';
 import 'package:news_app/data/service/bookmark_service.dart';
 import 'package:news_app/pages/login_page.dart';
+import 'package:news_app/pages/edit_news_page.dart';
+import 'package:news_app/utils/helper/toast.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -17,17 +20,19 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final TokenStorage _tokenStorage = TokenStorage();
   late final AuthService _authService;
-  final NewsService _newsService = NewsService.dummy();
+  late final NewsService _newsService;
   final BookmarkService _bookmarkService = BookmarkService();
 
   UserModel? _user;
   bool _isLoading = true;
   bool _isAnonymous = false;
+  int _newsCount = 0;
 
   @override
   void initState() {
     super.initState();
     _authService = AuthService(_tokenStorage);
+    _newsService = NewsService.withApi(_tokenStorage);
     _loadUser();
   }
 
@@ -43,11 +48,21 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       final user = await _authService.getUser();
+      
+      // Load news count dari API
+      int newsCount = 0;
+      try {
+        final userNews = await _newsService.getNewsByUserId(user.id);
+        newsCount = userNews.length;
+      } catch (_) {}
+      
       setState(() {
         _user = user;
+        _newsCount = newsCount;
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('Error loading user: $e');
       setState(() {
         _isAnonymous = true;
         _isLoading = false;
@@ -103,8 +118,6 @@ class _ProfilePageState extends State<ProfilePage> {
     // Unified layout untuk anonymous dan logged in user
     final userName = _isAnonymous ? 'Pengguna Anonim' : (_user?.name ?? 'User');
     final userEmail = _isAnonymous ? 'Belum login' : (_user?.email ?? '');
-    final newsCount = _isAnonymous ? 0 : _newsService.getNewsCountByAuthor(userName);
-    final commentCount = _isAnonymous ? 0 : _newsService.getCommentCountByUser(_user?.id ?? 0);
     final bookmarkCount = _bookmarkService.count;
 
     return Scaffold(
@@ -205,9 +218,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _StatItem(icon: LucideIcons.newspaper, count: newsCount, label: 'Berita', color: colorScheme.primary),
+                    _StatItem(icon: LucideIcons.newspaper, count: _newsCount, label: 'Berita', color: colorScheme.primary),
                     Container(width: 1, height: 40, color: colorScheme.outline.withOpacity(0.2)),
-                    _StatItem(icon: LucideIcons.messageCircle, count: commentCount, label: 'Komentar', color: Colors.orange),
+                    _StatItem(icon: LucideIcons.eye, count: 0, label: 'Views', color: Colors.orange),
                     Container(width: 1, height: 40, color: colorScheme.outline.withOpacity(0.2)),
                     _StatItem(icon: LucideIcons.bookmark, count: bookmarkCount, label: 'Saved', color: Colors.pink),
                   ],
@@ -315,12 +328,30 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inDays > 0) return '${diff.inDays} hari lalu';
+    if (diff.inHours > 0) return '${diff.inHours} jam lalu';
+    return '${diff.inMinutes} menit lalu';
+  }
+
   void _showManageNewsDialog(BuildContext context, String userName) async {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     
-    final allNews = await _newsService.getNewsList();
-    final userNews = allNews.where((n) => n.author == userName).toList();
+    // Fetch berita berdasarkan user yang login
+    List<NewsModel> userNews = [];
+    try {
+      if (_user != null) {
+        userNews = await _newsService.getNewsByUserId(_user!.id);
+      }
+    } catch (e) {
+      // Fallback: filter by author name
+      final allNews = await _newsService.getNewsList();
+      userNews = allNews.where((n) => n.author == userName).toList();
+    }
 
     if (!mounted) return;
 
@@ -395,78 +426,183 @@ class _ProfilePageState extends State<ProfilePage> {
                         controller: scrollController,
                         padding: const EdgeInsets.all(16),
                         itemCount: userNews.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => const SizedBox(height: 16),
                         itemBuilder: (context, index) {
                           final news = userNews[index];
                           return Container(
                             decoration: BoxDecoration(
                               color: colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.all(12),
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  news.imageUrl,
-                                  width: 60,
-                                  height: 60,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    width: 60,
-                                    height: 60,
-                                    color: colorScheme.primary.withOpacity(0.1),
-                                    child: Icon(LucideIcons.image, color: colorScheme.primary),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Image Header
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                                  child: Stack(
+                                    children: [
+                                      Image.network(
+                                        news.imageUrl,
+                                        width: double.infinity,
+                                        height: 140,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: double.infinity,
+                                          height: 140,
+                                          color: colorScheme.primary.withOpacity(0.1),
+                                          child: Icon(LucideIcons.image, 
+                                            color: colorScheme.primary.withOpacity(0.5), size: 40),
+                                        ),
+                                      ),
+                                      // Category Badge
+                                      Positioned(
+                                        top: 12,
+                                        left: 12,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.primary,
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            news.category,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Views Badge
+                                      Positioned(
+                                        top: 12,
+                                        right: 12,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.6),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(LucideIcons.eye, color: Colors.white, size: 14),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${news.likesCount}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                              title: Text(
-                                news.title,
-                                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  news.category,
-                                  style: textTheme.bodySmall?.copyWith(color: colorScheme.primary),
+                                // Content
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        news.title,
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Icon(LucideIcons.calendar, 
+                                            size: 14, color: colorScheme.onSurface.withOpacity(0.5)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            _formatDate(news.createdAt),
+                                            style: textTheme.bodySmall?.copyWith(
+                                              color: colorScheme.onSurface.withOpacity(0.5),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Icon(LucideIcons.messageCircle, 
+                                            size: 14, color: colorScheme.onSurface.withOpacity(0.5)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '${news.commentsCount} komentar',
+                                            style: textTheme.bodySmall?.copyWith(
+                                              color: colorScheme.onSurface.withOpacity(0.5),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      // Action Buttons
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton.icon(
+                                              onPressed: () async {
+                                                Navigator.pop(context);
+                                                final result = await Navigator.push(
+                                                  this.context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) => EditNewsPage(news: news),
+                                                  ),
+                                                );
+                                                if (result == true && mounted) {
+                                                  ToastHelper.success(this.context, 'Berita berhasil diperbarui');
+                                                }
+                                              },
+                                              icon: const Icon(LucideIcons.edit, size: 16),
+                                              label: const Text('Edit'),
+                                              style: OutlinedButton.styleFrom(
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: OutlinedButton.icon(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                                _confirmDeleteNews(this.context, news);
+                                              },
+                                              icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.red),
+                                              label: const Text('Hapus', style: TextStyle(color: Colors.red)),
+                                              style: OutlinedButton.styleFrom(
+                                                foregroundColor: Colors.red,
+                                                side: const BorderSide(color: Colors.red),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              trailing: PopupMenuButton<String>(
-                                icon: Icon(LucideIcons.moreVertical, color: colorScheme.onSurface.withOpacity(0.5)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                onSelected: (value) async {
-                                  Navigator.pop(context);
-                                  if (value == 'edit') {
-                                    _showComingSoon(this.context);
-                                  } else if (value == 'delete') {
-                                    _confirmDeleteNews(this.context, news);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Row(
-                                      children: [
-                                        Icon(LucideIcons.edit, size: 18, color: colorScheme.primary),
-                                        const SizedBox(width: 10),
-                                        const Text('Edit'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(LucideIcons.trash2, size: 18, color: Colors.red),
-                                        SizedBox(width: 10),
-                                        Text('Hapus', style: TextStyle(color: Colors.red)),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              ],
                             ),
                           );
                         },
@@ -479,7 +615,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _confirmDeleteNews(BuildContext context, dynamic news) async {
+  Future<void> _confirmDeleteNews(BuildContext context, NewsModel news) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -501,14 +637,17 @@ class _ProfilePageState extends State<ProfilePage> {
     );
 
     if (confirm == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Berita berhasil dihapus'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-      setState(() {});
+      try {
+        await _newsService.deleteNews(news.id);
+        if (mounted) {
+          ToastHelper.success(context, 'Berita berhasil dihapus');
+          setState(() {}); // Refresh UI
+        }
+      } catch (e) {
+        if (mounted) {
+          ToastHelper.error(context, 'Gagal menghapus berita: $e');
+        }
+      }
     }
   }
 }

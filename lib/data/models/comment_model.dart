@@ -16,14 +16,33 @@ class CommentModel {
   });
 
   factory CommentModel.fromJson(Map<String, dynamic> json) {
+    // Handle userName dari berbagai format response
+    String userName = 'Anonymous';
+    if (json['user_name'] != null) {
+      userName = json['user_name'].toString();
+    } else if (json['userName'] != null) {
+      userName = json['userName'].toString();
+    } else if (json['user'] != null && json['user'] is Map) {
+      userName = json['user']['name']?.toString() ?? 'Anonymous';
+    }
+
+    // Helper untuk parse int dari berbagai tipe
+    int parseIntValue(dynamic value, [int defaultValue = 0]) {
+      if (value == null) return defaultValue;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? defaultValue;
+      return defaultValue;
+    }
+
     return CommentModel(
-      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
-      newsId: json['news_id'] ?? json['newsId'] ?? 0,
-      userId: json['user_id'] ?? json['userId'] ?? 0,
-      userName: json['user_name'] ?? json['userName'] ?? 'Anonymous',
-      content: json['content'] ?? '',
+      id: parseIntValue(json['id']),
+      newsId: parseIntValue(json['news_id'] ?? json['newsId']),
+      userId: parseIntValue(json['user_id'] ?? json['userId']),
+      userName: userName,
+      // API returns 'comment' not 'content'
+      content: (json['comment'] ?? json['content'])?.toString() ?? '',
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? DateTime.parse(json['created_at'].toString())
           : DateTime.now(),
     );
   }
@@ -37,54 +56,6 @@ class CommentModel {
       'content': content,
       'created_at': createdAt.toIso8601String(),
     };
-  }
-
-  // Dummy comments untuk development
-  static List<CommentModel> getDummyComments(int newsId) {
-    final dummyData = <CommentModel>[
-      CommentModel(
-        id: 1,
-        newsId: newsId,
-        userId: 1,
-        userName: 'Andi Pratama',
-        content: 'Berita yang sangat informatif! Terima kasih sudah berbagi.',
-        createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-      ),
-      CommentModel(
-        id: 2,
-        newsId: newsId,
-        userId: 2,
-        userName: 'Putri Lestari',
-        content: 'Semoga perkembangan ini terus berlanjut ke arah yang positif.',
-        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-      ),
-      CommentModel(
-        id: 3,
-        newsId: newsId,
-        userId: 3,
-        userName: 'Rudi Hermawan',
-        content: 'Menarik sekali! Saya akan share ke teman-teman.',
-        createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-      ),
-      CommentModel(
-        id: 4,
-        newsId: newsId,
-        userId: 4,
-        userName: 'Maya Sari',
-        content: 'Kapan ada update selanjutnya tentang topik ini?',
-        createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-      ),
-      CommentModel(
-        id: 5,
-        newsId: newsId,
-        userId: 5,
-        userName: 'Doni Setiawan',
-        content: 'Saya setuju dengan poin-poin yang disampaikan di artikel ini.',
-        createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-      ),
-    ];
-    
-    return dummyData;
   }
 
   // Format waktu relatif

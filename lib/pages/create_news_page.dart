@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:news_app/data/models/news_model.dart';
+import 'package:news_app/data/models/user.dart';
 import 'package:news_app/data/service/news_service.dart';
+import 'package:news_app/data/service/auth_service.dart';
+import 'package:news_app/core/storage/token_storage.dart';
 import 'package:news_app/utils/helper/toast.dart';
 
 class CreateNewsPage extends StatefulWidget {
@@ -13,27 +16,60 @@ class CreateNewsPage extends StatefulWidget {
 
 class _CreateNewsPageState extends State<CreateNewsPage> {
   final _formKey = GlobalKey<FormState>();
-  final NewsService _newsService = NewsService.dummy();
+  final TokenStorage _tokenStorage = TokenStorage();
+  late final NewsService _newsService;
+  late final AuthService _authService;
 
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _imageUrlController = TextEditingController();
-  final _authorController = TextEditingController();
 
   String _selectedCategory = 'Teknologi';
+  UserModel? _currentUser;
   bool _isLoading = false;
+  bool _isLoadingUser = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _newsService = NewsService.withApi(_tokenStorage);
+    _authService = AuthService(_tokenStorage);
+    _loadCurrentUser();
+  }
+
+  /// Mengambil data user yang sedang login
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _authService.getUser();
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          _isLoadingUser = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingUser = false);
+        ToastHelper.error(context, 'Gagal memuat data penulis');
+      }
+    }
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
     _imageUrlController.dispose();
-    _authorController.dispose();
     super.dispose();
   }
 
   Future<void> _submitNews() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    
+    if (_currentUser == null) {
+      ToastHelper.error(context, 'Data penulis tidak tersedia');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -43,7 +79,7 @@ class _CreateNewsPageState extends State<CreateNewsPage> {
         content: _contentController.text.trim(),
         category: _selectedCategory,
         imageUrl: _imageUrlController.text.trim(),
-        author: _authorController.text.trim(),
+        author: _currentUser!.name,
       );
 
       if (!mounted) return;
@@ -53,7 +89,6 @@ class _CreateNewsPageState extends State<CreateNewsPage> {
       _titleController.clear();
       _contentController.clear();
       _imageUrlController.clear();
-      _authorController.clear();
       setState(() => _selectedCategory = 'Teknologi');
     } catch (e) {
       if (!mounted) return;
@@ -192,17 +227,29 @@ class _CreateNewsPageState extends State<CreateNewsPage> {
 
                 const SizedBox(height: 12),
 
-                // Author
-                _RoundedTextField(
-                  controller: _authorController,
-                  label: 'Nama Penulis',
-                  hint: 'Masukkan nama anda',
-                  prefixIcon: LucideIcons.userCircle,
-                  colorScheme: colorScheme,
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Nama penulis tidak boleh kosong';
-                    return null;
-                  },
+                // Author Field (Read-only, auto-filled from logged in user)
+                Container(
+                  key: ValueKey('author_$_isLoadingUser'),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: TextFormField(
+                    readOnly: true,
+                    initialValue: _isLoadingUser 
+                        ? 'Memuat...' 
+                        : (_currentUser?.name ?? 'Tidak tersedia'),
+                    decoration: InputDecoration(
+                      labelText: 'Nama Penulis',
+                      prefixIcon: Icon(LucideIcons.userCircle, color: colorScheme.primary),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.8),
+                    ),
+                  ),
                 ),
 
                 const SizedBox(height: 20),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:news_app/data/models/news_model.dart';
 import 'package:news_app/data/service/news_service.dart';
+import 'package:news_app/core/storage/token_storage.dart';
 import 'package:news_app/pages/news_detail_page.dart';
 
 class HomePageView extends StatefulWidget {
@@ -12,7 +13,8 @@ class HomePageView extends StatefulWidget {
 }
 
 class _HomePageViewState extends State<HomePageView> {
-  final NewsService _newsService = NewsService.dummy();
+  // Menggunakan API service untuk mengambil berita dari backend
+  final NewsService _newsService = NewsService.withApi(TokenStorage());
   final ScrollController _scrollController = ScrollController();
   
   String _selectedCategory = 'Semua';
@@ -472,7 +474,7 @@ class _NewsGridCard extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              const Icon(LucideIcons.heart, size: 12, color: Colors.pink),
+                              Icon(LucideIcons.eye, size: 12, color: colorScheme.primary),
                               const SizedBox(width: 4),
                               Text(
                                 '${news.likesCount}',
